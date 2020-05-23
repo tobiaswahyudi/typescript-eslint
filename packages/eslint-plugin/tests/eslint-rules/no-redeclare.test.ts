@@ -14,10 +14,24 @@ const ruleTester = new RuleTester({
 
 ruleTester.run('no-redeclare', rule, {
   valid: [
-    'var a = 3; var b = function() { var a = 10; };',
-    'var a = 3; a = 10;',
+    `
+var a = 3;
+var b = function () {
+  var a = 10;
+};
+    `,
+    `
+var a = 3;
+a = 10;
+    `,
     {
-      code: 'if (true) {\n    let b = 2;\n} else {    \nlet b = 3;\n}',
+      code: `
+if (true) {
+  let b = 2;
+} else {
+  let b = 3;
+}
+      `,
       parserOptions: {
         ecmaVersion: 6,
       },
@@ -52,19 +66,14 @@ ruleTester.run('no-redeclare', rule, {
       env: { browser: true },
     },
     {
-      code: 'var self = 1',
+      code: 'var self = 1;',
       options: [{ builtinGlobals: true }],
       env: { browser: false },
     },
-    // https://github.com/eslint/typescript-eslint-parser/issues/443
-    `
-const Foo = 1;
-type Foo = 1;
-    `,
     // https://github.com/eslint/typescript-eslint-parser/issues/535
     `
 function foo({ bar }: { bar: string }) {
-    console.log(bar);
+  console.log(bar);
 }
     `,
     `
@@ -80,13 +89,16 @@ interface ParseAndGenerateServicesResult<T extends ParserOptions> {
     `
 function A<T>() {}
 interface B<T> {}
-type C<T> = Array<T>
+type C<T> = Array<T>;
 class D<T> {}
     `,
   ],
   invalid: [
     {
-      code: 'var a = 3; var a = 10;',
+      code: `
+var a = 3;
+var a = 10;
+      `,
       parserOptions: { ecmaVersion: 6 },
       errors: [
         {
@@ -99,7 +111,14 @@ class D<T> {}
       ],
     },
     {
-      code: 'switch(foo) { case a: var b = 3;\ncase b: var b = 4}',
+      code: `
+switch (foo) {
+  case a:
+    var b = 3;
+  case b:
+    var b = 4;
+}
+      `,
       errors: [
         {
           messageId: 'redeclared',
@@ -111,7 +130,10 @@ class D<T> {}
       ],
     },
     {
-      code: 'var a = 3; var a = 10;',
+      code: `
+var a = 3;
+var a = 10;
+      `,
       errors: [
         {
           messageId: 'redeclared',
@@ -123,7 +145,10 @@ class D<T> {}
       ],
     },
     {
-      code: 'var a = {}; var a = [];',
+      code: `
+var a = {};
+var a = [];
+      `,
       errors: [
         {
           messageId: 'redeclared',
@@ -135,7 +160,10 @@ class D<T> {}
       ],
     },
     {
-      code: 'var a; function a() {}',
+      code: `
+var a;
+function a() {}
+      `,
       errors: [
         {
           messageId: 'redeclared',
@@ -147,7 +175,10 @@ class D<T> {}
       ],
     },
     {
-      code: 'function a() {} function a() {}',
+      code: `
+function a() {}
+function a() {}
+      `,
       errors: [
         {
           messageId: 'redeclared',
@@ -159,7 +190,10 @@ class D<T> {}
       ],
     },
     {
-      code: 'var a = function() { }; var a = function() { }',
+      code: `
+var a = function () {};
+var a = function () {};
+      `,
       errors: [
         {
           messageId: 'redeclared',
@@ -171,7 +205,10 @@ class D<T> {}
       ],
     },
     {
-      code: 'var a = function() { }; var a = new Date();',
+      code: `
+var a = function () {};
+var a = new Date();
+      `,
       errors: [
         {
           messageId: 'redeclared',
@@ -183,7 +220,11 @@ class D<T> {}
       ],
     },
     {
-      code: 'var a = 3; var a = 10; var a = 15;',
+      code: `
+var a = 3;
+var a = 10;
+var a = 15;
+      `,
       errors: [
         {
           messageId: 'redeclared',
@@ -202,7 +243,10 @@ class D<T> {}
       ],
     },
     {
-      code: 'var a; var a;',
+      code: `
+var a;
+var a;
+      `,
       parserOptions: { sourceType: 'module' },
       errors: [
         {
@@ -215,7 +259,10 @@ class D<T> {}
       ],
     },
     {
-      code: 'export var a; var a;',
+      code: `
+export var a;
+var a;
+      `,
       parserOptions: { sourceType: 'module' },
       errors: [
         {
@@ -255,7 +302,10 @@ class D<T> {}
       env: { browser: true },
     },
     {
-      code: 'var a; var {a = 0, b: Object = 0} = {};',
+      code: `
+var a;
+var { a = 0, b: Object = 0 } = {};
+      `,
       options: [{ builtinGlobals: true }],
       parserOptions: { ecmaVersion: 6 },
       errors: [
@@ -276,7 +326,10 @@ class D<T> {}
       ],
     },
     {
-      code: 'var a; var {a = 0, b: Object = 0} = {};',
+      code: `
+var a;
+var { a = 0, b: Object = 0 } = {};
+      `,
       options: [{ builtinGlobals: true }],
       parserOptions: { ecmaVersion: 6, sourceType: 'module' },
       errors: [
@@ -290,7 +343,10 @@ class D<T> {}
       ],
     },
     {
-      code: 'var a; var {a = 0, b: Object = 0} = {};',
+      code: `
+var a;
+var { a = 0, b: Object = 0 } = {};
+      `,
       options: [{ builtinGlobals: true }],
       parserOptions: { ecmaVersion: 6, ecmaFeatures: { globalReturn: true } },
       errors: [
@@ -304,7 +360,10 @@ class D<T> {}
       ],
     },
     {
-      code: 'var a; var {a = 0, b: Object = 0} = {};',
+      code: `
+var a;
+var { a = 0, b: Object = 0 } = {};
+      `,
       options: [{ builtinGlobals: false }],
       parserOptions: { ecmaVersion: 6 },
       errors: [
@@ -329,6 +388,39 @@ class D<T> {}
             id: 'b',
           },
           type: AST_TOKEN_TYPES.Block,
+        },
+      ],
+    },
+
+    {
+      code: `
+type T = 1;
+type T = 2;
+      `,
+      errors: [
+        {
+          messageId: 'redeclared',
+          data: {
+            id: 'T',
+          },
+          line: 3,
+        },
+      ],
+    },
+    {
+      code: `
+type NodeListOf = 1;
+      `,
+      options: [{ builtinGlobals: true }],
+      parserOptions: {
+        lib: ['dom'],
+      },
+      errors: [
+        {
+          messageId: 'redeclaredAsBuiltin',
+          data: {
+            id: 'NodeListOf',
+          },
         },
       ],
     },

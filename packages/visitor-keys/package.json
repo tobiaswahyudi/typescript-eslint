@@ -39,6 +39,7 @@
     "eslint-visitor-keys": "^1.1.0"
   },
   "devDependencies": {
+    "@types/eslint-visitor-keys": "^1.0.0",
     "@typescript-eslint/types": "3.4.0"
   },
   "funding": {

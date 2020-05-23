@@ -353,8 +353,8 @@ declare module 'eslint/lib/rules/no-shadow' {
     [
       {
         builtinGlobals?: boolean;
-        hoist: 'all' | 'functions' | 'never';
-        allow: string[];
+        hoist?: 'all' | 'functions' | 'never';
+        allow?: string[];
       },
     ],
     {

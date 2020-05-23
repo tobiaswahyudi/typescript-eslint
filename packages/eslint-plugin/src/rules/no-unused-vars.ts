@@ -1,7 +1,5 @@
-import {
-  AST_NODE_TYPES,
-  TSESTree,
-} from '@typescript-eslint/experimental-utils';
+import { TSESTree, TSESLint } from '@typescript-eslint/experimental-utils';
+import { PatternVisitor } from '@typescript-eslint/scope-manager';
 import baseRule from 'eslint/lib/rules/no-unused-vars';
 import * as util from '../util';
 
@@ -26,45 +24,133 @@ export default util.createRule<Options, MessageIds>({
     const rules = baseRule.create(context);
 
     /**
-     * Mark heritage clause as used
-     * @param node The node currently being traversed
+     * Gets a list of TS module definitions for a specified variable.
+     * @param variable eslint-scope variable object.
      */
-    function markHeritageAsUsed(node: TSESTree.Expression): void {
-      switch (node.type) {
-        case AST_NODE_TYPES.Identifier:
-          context.markVariableAsUsed(node.name);
-          break;
-        case AST_NODE_TYPES.MemberExpression:
-          markHeritageAsUsed(node.object);
-          break;
-        case AST_NODE_TYPES.CallExpression:
-          markHeritageAsUsed(node.callee);
-          break;
-      }
+    function getModuleDeclarations(
+      variable: TSESLint.Scope.Variable,
+    ): TSESTree.TSModuleDeclaration[] {
+      const functionDefinitions: TSESTree.TSModuleDeclaration[] = [];
+
+      variable.defs.forEach(def => {
+        // FunctionDeclarations
+        if (def.type === 'TSModuleName') {
+          functionDefinitions.push(def.node);
+        }
+      });
+
+      return functionDefinitions;
     }
 
-    return Object.assign({}, rules, {
-      'TSTypeReference Identifier'(node: TSESTree.Identifier) {
-        context.markVariableAsUsed(node.name);
-      },
-      TSInterfaceHeritage(node: TSESTree.TSInterfaceHeritage) {
-        if (node.expression) {
-          markHeritageAsUsed(node.expression);
+    /**
+     * Determine if an identifier is referencing an enclosing module name.
+     * @param ref The reference to check.
+     * @param nodes The candidate function nodes.
+     * @returns True if it's a self-reference, false if not.
+     */
+    function isSelfReference(
+      ref: TSESLint.Scope.Reference,
+      nodes: TSESTree.Node[],
+    ): boolean {
+      let scope: TSESLint.Scope.Scope | null = ref.from;
+
+      while (scope) {
+        if (nodes.indexOf(scope.block) >= 0) {
+          return true;
+        }
+
+        scope = scope.upper;
+      }
+
+      return false;
+    }
+
+    return {
+      ...rules,
+      'TSConstructorType, TSConstructSignatureDeclaration, TSDeclareFunction, TSEmptyBodyFunctionExpression, TSFunctionType, TSMethodSignature'(
+        node:
+          | TSESTree.TSConstructorType
+          | TSESTree.TSConstructSignatureDeclaration
+          | TSESTree.TSDeclareFunction
+          | TSESTree.TSEmptyBodyFunctionExpression
+          | TSESTree.TSFunctionType
+          | TSESTree.TSMethodSignature,
+      ): void {
+        // function type signature params create variables because they can be referenced within the signature,
+        // but they obviously aren't unused variables for the purposes of this rule.
+        for (const param of node.params) {
+          visitPattern(param, name => {
+            context.markVariableAsUsed(name.name);
+          });
         }
       },
-      TSClassImplements(node: TSESTree.TSClassImplements) {
-        if (node.expression) {
-          markHeritageAsUsed(node.expression);
+      TSEnumDeclaration(): void {
+        // enum members create variables because they can be referenced within the enum,
+        // but they obviously aren't unused variables for the purposes of this rule.
+        const scope = context.getScope();
+        for (const variable of scope.variables) {
+          context.markVariableAsUsed(variable.name);
         }
       },
-      'TSParameterProperty Identifier'(node: TSESTree.Identifier) {
-        // just assume parameter properties are used
+      TSMappedType(node): void {
+        // mapped types create a variable for their type name, but it's not necessary to reference it,
+        // so we shouldn't consider it as unused for the purpose of this rule.
+        context.markVariableAsUsed(node.typeParameter.name.name);
+      },
+      TSModuleDeclaration(): void {
+        const childScope = context.getScope();
+        const scope = util.nullThrows(
+          context.getScope().upper,
+          util.NullThrowsReasons.MissingToken(childScope.type, 'upper scope'),
+        );
+        for (const variable of scope.variables) {
+          // check if the only reference to a module's name is a self-reference in its body
+          const moduleNodes = getModuleDeclarations(variable);
+          const isModuleDefinition = moduleNodes.length > 0;
+
+          if (
+            !isModuleDefinition ||
+            // ignore unreferenced module definitions, as the base rule will report on them
+            variable.references.length === 0
+          ) {
+            continue;
+          }
+
+          const isVariableOnlySelfReferenced = variable.references.every(
+            ref => {
+              return isSelfReference(ref, moduleNodes);
+            },
+          );
+
+          if (isVariableOnlySelfReferenced) {
+            context.report({
+              node: variable.identifiers[0],
+              messageId: 'unusedVar',
+              data: {
+                varName: variable.name,
+                action: 'defined',
+                additional: '',
+              },
+            });
+          }
+        }
+      },
+      [[
+        'TSParameterProperty > AssignmentPattern > Identifier.left',
+        'TSParameterProperty > Identifier.parameter',
+      ].join(', ')](node: TSESTree.Identifier): void {
+        // just assume parameter properties are used as property usage tracking is beyond the scope of this rule
         context.markVariableAsUsed(node.name);
       },
-      'TSEnumMember Identifier'(node: TSESTree.Identifier) {
+      ':matches(FunctionDeclaration, FunctionExpression, ArrowFunctionExpression) > Identifier[name="this"].params'(
+        node: TSESTree.Identifier,
+      ): void {
+        // this parameters should always be considered used as they're pseudo-parameters
         context.markVariableAsUsed(node.name);
       },
-      '*[declare=true] Identifier'(node: TSESTree.Identifier) {
+
+      // TODO
+      '*[declare=true] Identifier'(node: TSESTree.Identifier): void {
         context.markVariableAsUsed(node.name);
         const scope = context.getScope();
         const { variableScope } = scope;
@@ -75,6 +161,14 @@ export default util.createRule<Options, MessageIds>({
           }
         }
       },
-    });
+    };
+
+    function visitPattern(
+      node: TSESTree.Node,
+      cb: (node: TSESTree.Identifier) => void,
+    ): void {
+      const visitor = new PatternVisitor({}, node, cb);
+      visitor.visit(node);
+    }
   },
 });
