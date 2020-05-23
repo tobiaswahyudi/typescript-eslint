@@ -190,3 +190,20 @@ export interface ParserServices {
   tsNodeToESTreeNodeMap: ParserWeakMap<TSNode | TSToken, TSESTree.Node>;
   hasFullTypeInformation: boolean;
 }
+
+// This is defined here even though it's not used here to prevent cyclic references between packages
+export type EcmaVersion =
+  | 3
+  | 5
+  | 6
+  | 7
+  | 8
+  | 9
+  | 10
+  | 11
+  | 2015
+  | 2016
+  | 2017
+  | 2018
+  | 2019
+  | 2020;

@@ -4,7 +4,7 @@ export {
   parseAndGenerateServices,
   ParseAndGenerateServicesResult,
 } from './parser';
-export { ParserServices, TSESTreeOptions } from './parser-options';
+export { ParserServices, TSESTreeOptions, EcmaVersion } from './parser-options';
 export { simpleTraverse } from './simple-traverse';
 export * from './ts-estree';
 export { clearCaches } from './create-program/createWatchProgram';
